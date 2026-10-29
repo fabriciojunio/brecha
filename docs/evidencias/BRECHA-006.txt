@@ -1,0 +1,17 @@
+$ curl -i -X POST -H 'Authorization: Bearer <token da Ana, v1>' -H 'Content-Type: application/json' -d '{"origem":100,"destino":200,"valor":-3000}' http://127.0.0.1:8080/v1/transferencias
+HTTP/1.1 200 
+Content-Type: application/json
+Content-Length: 94
+Date: Thu, 29 Oct 2026 14:10:23 GMT
+
+{"id":1002,"origem":100,"destino":200,"valor":-3000,"quando":"2026-10-29T14:10:23.037400300Z"}
+
+$ curl -i -X POST -H 'Authorization: Bearer <token da Ana, v2>' -H 'Content-Type: application/json' -d '{"destino":200,"valor":-3000}' http://127.0.0.1:8080/v2/transferencias
+HTTP/1.1 400 
+Content-Type: application/problem+json
+Transfer-Encoding: chunked
+Date: Thu, 29 Oct 2026 14:10:25 GMT
+Connection: close
+
+{"detail":"Requisição inválida","instance":"/v2/transferencias","status":400,"title":"Bad Request"}
+

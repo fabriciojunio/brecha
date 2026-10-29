@@ -1,0 +1,24 @@
+$ curl -i -H 'Authorization: Bearer <token da Ana, v1>' http://127.0.0.1:8080/v1/contas/200
+HTTP/1.1 200 
+Content-Type: application/json
+Content-Length: 40
+Date: Thu, 29 Oct 2026 14:09:56 GMT
+
+{"clienteId":2,"saldo":8000.00,"id":200}
+
+$ curl -i -H 'Authorization: Bearer <token da Ana, v2>' http://127.0.0.1:8080/v2/contas/200
+HTTP/1.1 404 
+Content-Type: application/problem+json
+Transfer-Encoding: chunked
+Date: Thu, 29 Oct 2026 14:09:57 GMT
+
+{"detail":"Recurso não encontrado","instance":"/v2/contas/200","status":404,"title":"Not Found"}
+
+$ curl -i -X POST -H 'Authorization: Bearer <token da Ana, v1>' -H 'Content-Type: application/json' -d '{"origem":200,"destino":100,"valor":1000}' http://127.0.0.1:8080/v1/transferencias
+HTTP/1.1 200 
+Content-Type: application/json
+Content-Length: 93
+Date: Thu, 29 Oct 2026 14:10:22 GMT
+
+{"id":1001,"origem":200,"destino":100,"valor":1000,"quando":"2026-10-29T14:10:22.312090200Z"}
+

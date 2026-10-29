@@ -1,0 +1,16 @@
+$ curl -i -H 'Authorization: Bearer <token da Ana, v1>' http://127.0.0.1:8080/v1/admin/clientes
+HTTP/1.1 200 
+Content-Type: application/json
+Content-Length: 620
+Date: Thu, 29 Oct 2026 14:10:13 GMT
+
+[{"id":1,"nome":"Ana Souza","cpf":"52998224725","email":"ana@exemplo.com.br","senhaHash":"vwqZhN...(mascarado)","perfil":"CLIENTE","limiteDeCredito":1000.00},{"id":2,"nome":"Bruno Lima","cpf":"11144477735","email":"bruno@exemplo.com.br","senhaHash":"pTQfv6...(mascarado)","perfil":"CLIENTE","limiteDeCredito":2000.00},{"id":3,"nome":"Operação","cpf":"39053344705","email":"operacao@exemplo.com.br","senhaHash":"RIAqfb...(mascarado)","perfil":"ADMIN","limiteDeCredito":0}]
+
+$ curl -i -H 'Authorization: Bearer <token da Ana, v2>' http://127.0.0.1:8080/v2/admin/clientes
+HTTP/1.1 403 
+Content-Type: application/problem+json
+Transfer-Encoding: chunked
+Date: Thu, 29 Oct 2026 14:10:15 GMT
+
+{"detail":"Acesso negado","instance":"/v2/admin/clientes","status":403,"title":"Forbidden"}
+

@@ -1,0 +1,32 @@
+$ curl -i -H 'Authorization: Bearer <token da Ana, v1>' http://127.0.0.1:8080/v1/clientes/me
+HTTP/1.1 200 
+Content-Type: application/json
+Content-Length: 205
+Date: Thu, 29 Oct 2026 14:10:00 GMT
+
+{"id":1,"nome":"Ana Souza","cpf":"52998224725","email":"ana@exemplo.com.br","senhaHash":"vwqZhN...(mascarado)","perfil":"CLIENTE","limiteDeCredito":1000.00}
+
+$ curl -i -H 'Authorization: Bearer <token da Ana, v2>' http://127.0.0.1:8080/v2/clientes/me
+HTTP/1.1 200 
+Content-Type: application/json
+Content-Length: 79
+Date: Thu, 29 Oct 2026 14:10:01 GMT
+
+{"id":1,"nome":"Ana Souza","cpf":"***.***.***-25","email":"ana@exemplo.com.br"}
+
+$ curl -i -X PATCH -H 'Authorization: Bearer <token da Ana, v1>' -H 'Content-Type: application/json' -d '{"perfil":"ADMIN","limiteDeCredito":999999}' http://127.0.0.1:8080/v1/clientes/me
+HTTP/1.1 200 
+Content-Type: application/json
+Content-Length: 202
+Date: Thu, 29 Oct 2026 14:10:26 GMT
+
+{"id":1,"nome":"Ana Souza","cpf":"52998224725","email":"ana@exemplo.com.br","senhaHash":"vwqZhN...(mascarado)","perfil":"ADMIN","limiteDeCredito":999999}
+
+$ curl -i -X PATCH -H 'Authorization: Bearer <token da Ana, v2>' -H 'Content-Type: application/json' -d '{"perfil":"ADMIN","limiteDeCredito":999999}' http://127.0.0.1:8080/v2/clientes/me
+HTTP/1.1 200 
+Content-Type: application/json
+Content-Length: 79
+Date: Thu, 29 Oct 2026 14:10:27 GMT
+
+{"id":1,"nome":"Ana Souza","cpf":"***.***.***-25","email":"ana@exemplo.com.br"}
+

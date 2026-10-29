@@ -1,0 +1,16 @@
+$ curl -i -X POST -H 'Authorization: Bearer <token da Ana, v1>' -H 'Content-Type: application/json' -d '{"url":"http://127.0.0.1:8080/v0/clientes"}' http://127.0.0.1:8080/v1/comprovantes/importar
+HTTP/1.1 200 
+Content-Type: application/json
+Content-Length: 311
+Date: Thu, 29 Oct 2026 14:10:18 GMT
+
+{"status":200,"conteudo":"[{\"email\":\"ana@exemplo.com.br\",\"nome\":\"Ana Souza\",\"cpf\":\"52998224725\",\"id\":1},{\"email\":\"bruno@exemplo.com.br\",\"nome\":\"Bruno Lima\",\"cpf\":\"11144477735\",\"id\":2},{\"email\":\"operacao@exemplo.com.br\",\"nome\":\"Operação\",\"cpf\":\"39053344705\",\"id\":3}]"}
+
+$ curl -i -X POST -H 'Authorization: Bearer <token da Ana, v2>' -H 'Content-Type: application/json' -d '{"url":"https://169.254.169.254/latest/meta-data/"}' http://127.0.0.1:8080/v2/comprovantes/importar
+HTTP/1.1 422 
+Content-Type: application/problem+json
+Transfer-Encoding: chunked
+Date: Thu, 29 Oct 2026 14:10:18 GMT
+
+{"detail":"Host fora da lista de emissores de comprovante","instance":"/v2/comprovantes/importar","status":422,"title":"Unprocessable Content"}
+

@@ -1,0 +1,13 @@
+$ curl -s -o /dev/null -w '%{http_code} %{size_download} %{time_total}' -H 'Authorization: Bearer <token da Ana, v1>' 'http://127.0.0.1:8080/v1/contas/100/extrato?dias=2000000'
+HTTP 200, 73259717 bytes em 3.750967s
+
+
+$ curl -i -H 'Authorization: Bearer <token da Ana, v2>' 'http://127.0.0.1:8080/v2/contas/100/extrato?dias=2000000'
+HTTP/1.1 400 
+Content-Type: application/problem+json
+Transfer-Encoding: chunked
+Date: Thu, 29 Oct 2026 14:10:12 GMT
+Connection: close
+
+{"detail":"Requisição inválida","instance":"/v2/contas/100/extrato","status":400,"title":"Bad Request"}
+

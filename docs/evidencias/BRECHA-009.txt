@@ -1,0 +1,8 @@
+$ curl -i http://127.0.0.1:8080/v0/clientes
+HTTP/1.1 200 
+Content-Type: application/json
+Content-Length: 241
+Date: Thu, 29 Oct 2026 14:09:55 GMT
+
+[{"email":"ana@exemplo.com.br","nome":"Ana Souza","cpf":"52998224725","id":1},{"email":"bruno@exemplo.com.br","nome":"Bruno Lima","cpf":"11144477735","id":2},{"email":"operacao@exemplo.com.br","nome":"Operação","cpf":"39053344705","id":3}]
+
