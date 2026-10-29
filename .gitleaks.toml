@@ -1,0 +1,10 @@
+# Usa as regras padrão do gitleaks e registra só as exceções deste projeto.
+[extend]
+useDefault = true
+
+[allowlist]
+# MzpBRE1JTg é o Base64 de "3:ADMIN": o token forjado do BRECHA-002, carga do
+# ataque documentada no relatório e nas evidências. Não dá acesso a nada fora
+# do laboratório e não é segredo de ninguém.
+description = "Token forjado do BRECHA-002, documentado de propósito"
+regexes = ['''MzpBRE1JTg''']
