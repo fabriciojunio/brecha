@@ -80,3 +80,8 @@ docs/
 
 Use só para estudo, na sua máquina. As técnicas descritas aqui só podem ser aplicadas em sistemas com
 autorização por escrito do dono.
+
+## Uso de IA
+
+Este projeto foi estruturado com apoio de ferramentas de IA generativa. Modelagem, regras de
+negócio, revisão do código e conclusões foram revisadas e validadas por Fabrício Júnio.
