@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: ["produção", "homologação"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  teste:
+    name: Exploração e reteste
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+      # Os testes sobem a aplicação e atacam o /v1 e o /v2 por HTTP de verdade:
+      # se uma correção regredir, o reteste deste job reprova.
+      - name: Testes
+        run: mvn -B verify
+
+  seguranca:
+    name: Segredos, dependências e autoria
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+      # As falhas do projeto são de propósito; as dependências não podem ser.
+      - name: Gerar o SBOM
+        run: mvn -B -q org.cyclonedx:cyclonedx-maven-plugin:2.9.3:makeAggregateBom -DoutputFormat=json -DoutputName=bom.cdx
+      - uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+        with:
+          scan-args: |-
+            -L target/bom.cdx.json
+      - name: Autoria do histórico
+        run: |
+          if git log --format=%B | grep -Eiq '^co-authored-by:.*(claude|anthropic)|generated with.*claude'; then
+            echo "Commit com coautoria de ferramenta de IA no histórico"
+            exit 1
+          fi
