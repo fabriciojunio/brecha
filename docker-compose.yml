@@ -1,0 +1,87 @@
+# Laboratório completo do brecha, vulnerável de propósito. Só nesta máquina:
+# toda porta publicada escuta em 127.0.0.1. Dados simulados.
+#
+# Duas redes. A "publica" tem o que o cliente acessa; a "interna" tem o banco e
+# o painel de operação, sem porta publicada. Aqui a interna é uma ponte comum,
+# com saída para fora, e os segredos estão em variável de ambiente: os dois
+# erros que a pós-exploração do relatório aproveita. A versão corrigida está
+# em docker-compose.corrigido.yml.
+#
+# As senhas vêm do ambiente; o infra/rede/provar.sh gera valores novos a cada
+# execução.
+services:
+  api:
+    build: .
+    environment:
+      BRECHA_SEGREDO: ${BRECHA_SEGREDO:?defina o segredo do token}
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks: [publica, interna]
+    # O atacante na internet. Na corrigida, a rede interna não tem saída.
+    extra_hosts:
+      - "atacante:host-gateway"
+
+  relatorios:
+    build: servicos/relatorios
+    command: ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn --bind 0.0.0.0:8000 --workers 2 relatorios.wsgi:application"]
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?}
+      DJANGO_ALLOWED_HOSTS: "127.0.0.1,localhost,relatorios"
+      BRECHA_SEGREDO: ${BRECHA_SEGREDO:?}
+      RELATORIOS_TOKEN_DE_SERVICO: ${RELATORIOS_TOKEN_DE_SERVICO:?}
+      PGHOST: banco
+      PGUSER: relatorios
+      PGPASSWORD: ${PGPASSWORD:?}
+      PGDATABASE: relatorios
+    ports:
+      - "127.0.0.1:8000:8000"
+    networks: [publica, interna]
+    depends_on:
+      banco: {condition: service_healthy}
+
+  comprovantes:
+    build: servicos/comprovantes
+    environment:
+      COMPROVANTES_ENDERECO: 0.0.0.0:8090
+      COMPROVANTES_CHAVE_CIFRA: ${COMPROVANTES_CHAVE_CIFRA:?}
+      COMPROVANTES_CHAVE_ASSINATURA: ${COMPROVANTES_CHAVE_ASSINATURA:?}
+    ports:
+      - "127.0.0.1:8090:8090"
+    networks: [publica, interna]
+
+  notificacao:
+    build: servicos/notificacao
+    environment:
+      NOTIFICACAO_ENDERECO: 0.0.0.0
+      BRECHA_SEGREDO: ${BRECHA_SEGREDO:?}
+      NOTIFICACAO_PARCEIRO_URL: http://parceiro.exemplo.invalid
+    ports:
+      - "127.0.0.1:8070:8070"
+    networks: [publica]
+
+  banco:
+    image: postgres:17.10-alpine3.24@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    environment:
+      POSTGRES_USER: relatorios
+      POSTGRES_PASSWORD: ${PGPASSWORD:?}
+      POSTGRES_DB: relatorios
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U relatorios"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [interna]
+
+  # O painel junta a configuração de tudo "para o time de operação conferir".
+  painel:
+    build: servicos/painel
+    environment:
+      BRECHA_SEGREDO: ${BRECHA_SEGREDO:?}
+      PGPASSWORD: ${PGPASSWORD:?}
+      COMPROVANTES_CHAVE_ASSINATURA: ${COMPROVANTES_CHAVE_ASSINATURA:?}
+      RELATORIOS_TOKEN_DE_SERVICO: ${RELATORIOS_TOKEN_DE_SERVICO:?}
+    networks: [interna]
+
+networks:
+  publica:
+  interna:

@@ -6,8 +6,18 @@ Vulnerável de propósito no /v1, e só para laboratório local. Dados simulados
 import os
 
 
+def segredo(nome: str) -> str:
+    """Lê do arquivo em NOME_ARQUIVO quando existir (a forma da versão
+    corrigida) ou da variável NOME (a do laboratório)."""
+    arquivo = os.environ.get(f"{nome}_ARQUIVO")
+    if arquivo:
+        with open(arquivo, encoding="utf-8") as conteudo:
+            return conteudo.read().strip()
+    return os.environ.get(nome, "")
+
+
 def obrigatorio(nome: str) -> str:
-    valor = os.environ.get(nome, "")
+    valor = segredo(nome)
     if not valor:
         raise RuntimeError(f"{nome} não definido")
     return valor
@@ -48,7 +58,7 @@ DATABASES = {
         "PORT": os.environ.get("PGPORT", "5432"),
         "NAME": os.environ.get("PGDATABASE", "relatorios"),
         "USER": os.environ.get("PGUSER", "relatorios"),
-        "PASSWORD": os.environ.get("PGPASSWORD", ""),
+        "PASSWORD": segredo("PGPASSWORD"),
         "CONN_MAX_AGE": 60,
     }
 }

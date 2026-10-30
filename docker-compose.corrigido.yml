@@ -1,0 +1,95 @@
+# Sobreposição com a rede e os segredos corrigidos. Não muda o código: mostra
+# que, mesmo com as falhas do /v1 ainda lá, a cadeia do relatório para.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.corrigido.yml up -d
+#
+# - rede interna sem saída (internal: true): a API não alcança o atacante, e
+#   nada baixa ferramenta nem abre túnel;
+# - a API só é alcançada pelo WAF (ModSecurity com o OWASP CRS);
+# - API em imagem sem shell nem curl;
+# - segredos em arquivo (SEGREDOS_DIR), fora de variável de ambiente;
+# - painel com token e sem /config.
+services:
+  waf:
+    image: owasp/modsecurity-crs:4.30.0-nginx-202610180210@sha256:7698c48a41a43138ae317feeec964d1515b861cc1d9e50617bc1cdfe9f314e1d
+    environment:
+      BACKEND: http://api:8080
+      PORT: "8080"
+      PARANOIA: "1"
+      ANOMALY_INBOUND: "5"
+      ANOMALY_OUTBOUND: "4"
+      # Corpo maior que o limite é recusado, nunca inspecionado pela metade.
+      MODSEC_REQ_BODY_LIMIT: "131072"
+      MODSEC_REQ_BODY_LIMIT_ACTION: Reject
+      MODSEC_RESP_BODY_ACCESS: "Off"
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks: [publica, interna]
+    depends_on: [api]
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.corrigido
+    ports: !reset []
+    extra_hosts: !reset []
+    environment: !override
+      SPRING_CONFIG_IMPORT: configtree:/run/secrets/
+    secrets:
+      - source: brecha_segredo
+        target: brecha.segredo
+    networks: !override [interna]
+
+  relatorios:
+    environment: !override
+      DJANGO_SECRET_KEY_ARQUIVO: /run/secrets/django_secret_key
+      DJANGO_ALLOWED_HOSTS: "127.0.0.1,localhost,relatorios"
+      BRECHA_SEGREDO_ARQUIVO: /run/secrets/brecha_segredo
+      RELATORIOS_TOKEN_DE_SERVICO_ARQUIVO: /run/secrets/relatorios_token
+      PGHOST: banco
+      PGUSER: relatorios
+      PGPASSWORD_ARQUIVO: /run/secrets/pgpassword
+      PGDATABASE: relatorios
+    secrets: [django_secret_key, brecha_segredo, relatorios_token, pgpassword]
+
+  comprovantes:
+    environment: !override
+      COMPROVANTES_ENDERECO: 0.0.0.0:8090
+      COMPROVANTES_SEGREDOS: /run/secrets/comprovantes
+    secrets:
+      - source: comprovantes_cifra
+        target: /run/secrets/comprovantes/cifra.hex
+      - source: comprovantes_assinatura
+        target: /run/secrets/comprovantes/assinatura.hex
+
+  notificacao:
+    environment: !override
+      NOTIFICACAO_ENDERECO: 0.0.0.0
+      BRECHA_SEGREDO_ARQUIVO: /run/secrets/brecha_segredo
+      NOTIFICACAO_PARCEIRO_URL: http://parceiro.exemplo.invalid
+    secrets: [brecha_segredo]
+
+  banco:
+    environment: !override
+      POSTGRES_USER: relatorios
+      POSTGRES_PASSWORD_FILE: /run/secrets/pgpassword
+      POSTGRES_DB: relatorios
+    secrets: [pgpassword]
+
+  painel:
+    environment: !override
+      PAINEL_TOKEN_ARQUIVO: /run/secrets/painel_token
+    secrets: [painel_token]
+
+networks:
+  interna:
+    internal: true
+
+secrets:
+  brecha_segredo: {file: "${SEGREDOS_DIR:?}/brecha_segredo"}
+  django_secret_key: {file: "${SEGREDOS_DIR:?}/django_secret_key"}
+  relatorios_token: {file: "${SEGREDOS_DIR:?}/relatorios_token"}
+  pgpassword: {file: "${SEGREDOS_DIR:?}/pgpassword"}
+  comprovantes_cifra: {file: "${SEGREDOS_DIR:?}/comprovantes_cifra"}
+  comprovantes_assinatura: {file: "${SEGREDOS_DIR:?}/comprovantes_assinatura"}
+  painel_token: {file: "${SEGREDOS_DIR:?}/painel_token"}

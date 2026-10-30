@@ -63,6 +63,12 @@ jobs:
           { echo '### gosec no serviço de comprovantes'; echo '```'; grep -E 'G[0-9]{3}|Issues' gosec.txt || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - name: Imagem
         run: docker build -t brecha-comprovantes .
+      - name: Painel de operação (testes)
+        working-directory: servicos/painel
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test -count=1 -v ./...
 
   relatorios:
     name: Serviço de relatórios (Python e Django)
@@ -143,6 +149,35 @@ jobs:
         run: npm audit --audit-level=low
       - name: Imagem
         run: docker build -t brecha-notificacao .
+
+  rede:
+    name: Rede, pivô e versão corrigida
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    needs: [teste, comprovantes, relatorios, notificacao]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+      # O gerador do objeto serializado usa a classe da própria aplicação.
+      - name: Compilar
+        run: mvn -B -q -DskipTests package
+      - name: Ferramentas do atacante (Nmap e proxychains)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq nmap proxychains4 > /dev/null
+      # Laboratório: SSRF, segredo vazado, execução de comando, túnel e Nmap.
+      # Corrigida: a mesma cadeia, que tem de parar em cada passo.
+      - name: Prova de rede
+        run: bash infra/rede/provar.sh
+      - name: Contêineres quando falha
+        if: failure()
+        run: docker ps -a
 
   seguranca:
     name: Segredos, dependências e autoria
