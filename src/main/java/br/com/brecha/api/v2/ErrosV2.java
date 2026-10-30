@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -46,8 +47,10 @@ public class ErrosV2 {
         return ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_CONTENT, e.getMessage());
     }
 
+    // Corpo ilegível ou valor de tipo errado (enum desconhecido, texto no lugar
+    // de número) é erro de quem pediu, não do servidor.
     @ExceptionHandler({MethodArgumentNotValidException.class, HandlerMethodValidationException.class,
-            ConstraintViolationException.class})
+            ConstraintViolationException.class, HttpMessageNotReadableException.class})
     ProblemDetail invalido() {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Requisição inválida");
     }

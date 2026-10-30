@@ -1,5 +1,6 @@
 package br.com.brecha;
 
+import br.com.brecha.dominio.AgendamentoDeRelatorio;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,7 +11,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.math.BigDecimal;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -18,6 +21,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -362,4 +367,135 @@ class ExploracaoTest {
             assertThat(r.corpo()).contains("52998224725");
         }
     }
+
+    String bruno(String versao) throws Exception {
+        return entrar(versao, "bruno@exemplo.com.br", "bruno-senha-2026");
+    }
+
+    long idDa(Resposta transferencia) {
+        Matcher m = Pattern.compile("\"id\"\\s*:\\s*(\\d+)").matcher(transferencia.corpo());
+        assertThat(m.find()).as("transferência sem id: %s", transferencia).isTrue();
+        return Long.parseLong(m.group(1));
+    }
+
+    @Nested
+    @DisplayName("BRECHA-018: estorno sem regra de negócio")
+    class Estorno {
+
+        @Test
+        void v1PagadorEstornaDuasVezesEOValorQueQuiser() throws Exception {
+            String bruno = bruno("v1");
+            long id = idDa(chamar("POST", "/v1/transferencias", bruno, "{\"origem\":200,\"destino\":100,\"valor\":100}"));
+            assertThat(chamar("POST", "/v1/transferencias/" + id + "/estorno", bruno, "{\"valor\":100}").status()).isEqualTo(200);
+            assertThat(chamar("POST", "/v1/transferencias/" + id + "/estorno", bruno, "{\"valor\":1000}").status()).isEqualTo(200);
+            // Pagou 100 e recebeu 1100 de volta: a Ana termina devendo.
+            assertThat(saldo(bruno, "v1", 200)).isEqualByComparingTo("9000");
+            assertThat(saldo(bruno, "v1", 100)).isEqualByComparingTo("-500");
+        }
+
+        @Test
+        void v2EstornaUmaVezSoEOValorOriginal() throws Exception {
+            String bruno = bruno("v2");
+            long id = idDa(chamar("POST", "/v2/transferencias", bruno, "{\"destino\":100,\"valor\":100}"));
+            Resposta primeiro = chamar("POST", "/v2/transferencias/" + id + "/estorno", bruno, "{\"valor\":1000}");
+            assertThat(primeiro.status()).isEqualTo(200);
+            assertThat(primeiro.corpo()).contains("\"valor\":100");
+            assertThat(chamar("POST", "/v2/transferencias/" + id + "/estorno", bruno, null).status()).isEqualTo(422);
+            assertThat(saldo(bruno, "v2", 200)).isEqualByComparingTo("8000");
+            assertThat(saldo(ana("v2"), "v2", 100)).isEqualByComparingTo("500");
+        }
+
+        @Test
+        void v2SoQuemPagouEstorna() throws Exception {
+            long id = idDa(chamar("POST", "/v2/transferencias", bruno("v2"), "{\"destino\":100,\"valor\":100}"));
+            // A Ana recebeu; estornar não é dela, e a resposta não confirma que a transferência existe.
+            assertThat(chamar("POST", "/v2/transferencias/" + id + "/estorno", ana("v2"), null).status()).isEqualTo(404);
+        }
+
+        @Test
+        void v2DoisEstornosAoMesmoTempoPassaSoUm() throws Exception {
+            String bruno = bruno("v2");
+            long id = idDa(chamar("POST", "/v2/transferencias", bruno, "{\"destino\":100,\"valor\":100}"));
+            try (var executor = Executors.newFixedThreadPool(8)) {
+                List<Future<Integer>> pedidos = new ArrayList<>();
+                for (int i = 0; i < 8; i++) {
+                    pedidos.add(executor.submit(() -> chamar("POST", "/v2/transferencias/" + id + "/estorno", bruno, null).status()));
+                }
+                int aceitos = 0;
+                for (Future<Integer> pedido : pedidos) {
+                    aceitos += pedido.get() == 200 ? 1 : 0;
+                }
+                assertThat(aceitos).isEqualTo(1);
+            }
+            assertThat(saldo(bruno, "v2", 200)).isEqualByComparingTo("8000");
+        }
+
+        @Test
+        void v2RecusaQuandoORecebedorNaoTemMaisODinheiro() throws Exception {
+            String ana = ana("v2");
+            long id = idDa(chamar("POST", "/v2/transferencias", ana, "{\"destino\":200,\"valor\":100}"));
+            // O Bruno gasta tudo antes do estorno.
+            chamar("POST", "/v2/transferencias", bruno("v2"), "{\"destino\":300,\"valor\":8100}");
+            assertThat(chamar("POST", "/v2/transferencias/" + id + "/estorno", ana, null).status()).isEqualTo(422);
+            assertThat(saldo(ana, "v2", 100)).isEqualByComparingTo("400");
+        }
+    }
+
+    @Nested
+    @DisplayName("BRECHA-017: desserialização insegura")
+    class Desserializacao {
+
+        Path marca;
+
+        @BeforeEach
+        void preparar() throws IOException {
+            marca = Files.createTempDirectory("brecha").resolve("executado");
+        }
+
+        String agendamentoMalicioso() throws IOException {
+            // O comando só cria um arquivo: prova que o servidor executou o que
+            // o atacante escolheu, sem fazer nada além disso.
+            List<String> comando = System.getProperty("os.name").startsWith("Windows")
+                    ? List.of("cmd", "/c", "type nul > \"" + marca + "\"")
+                    : List.of("touch", marca.toString());
+            var bytes = new ByteArrayOutputStream();
+            try (var saida = new ObjectOutputStream(bytes)) {
+                saida.writeObject(new AgendamentoDeRelatorio("PDF", "08:00", comando));
+            }
+            return Base64.getEncoder().encodeToString(bytes.toByteArray());
+        }
+
+        boolean marcaAparece() throws InterruptedException {
+            for (int i = 0; i < 50 && !Files.exists(marca); i++) {
+                Thread.sleep(100);
+            }
+            return Files.exists(marca);
+        }
+
+        @Test
+        void v1ExecutaOComandoDoAtacante() throws Exception {
+            Resposta r = chamar("POST", "/v1/agendamentos", ana("v1"), "{\"agendamento\":\"" + agendamentoMalicioso() + "\"}");
+            assertThat(r.status()).isEqualTo(200);
+            assertThat(marcaAparece()).as("o comando escolhido pelo atacante rodou no servidor").isTrue();
+        }
+
+        @Test
+        void v2NaoAceitaObjetoSerializado() throws Exception {
+            Resposta r = chamar("POST", "/v2/agendamentos", ana("v2"), "{\"agendamento\":\"" + agendamentoMalicioso() + "\"}");
+            assertThat(r.status()).isEqualTo(400);
+            assertThat(marcaAparece()).isFalse();
+        }
+
+        @Test
+        void v2AceitaSoFormatoEHorarioValidos() throws Exception {
+            String ana = ana("v2");
+            assertThat(chamar("POST", "/v2/agendamentos", ana, "{\"formato\":\"PDF\",\"horario\":\"08:00\"}").status()).isEqualTo(200);
+            assertThat(chamar("POST", "/v2/agendamentos", ana, "{\"formato\":\"EXE\",\"horario\":\"08:00\"}").status()).isEqualTo(400);
+            assertThat(chamar("POST", "/v2/agendamentos", ana, "{\"formato\":\"PDF\",\"horario\":\"25:00\"}").status()).isEqualTo(400);
+            String comPos = "{\"formato\":\"CSV\",\"horario\":\"08:00\",\"posProcessamento\":[\"touch\",\"" + marca.toString().replace("\\", "/") + "\"]}";
+            assertThat(chamar("POST", "/v2/agendamentos", ana, comPos).status()).isEqualTo(200);
+            assertThat(marcaAparece()).as("campo fora do contrato não pode virar comando").isFalse();
+        }
+    }
 }
+

@@ -1,5 +1,6 @@
 package br.com.brecha.api.v1;
 
+import br.com.brecha.dominio.AgendamentoDeRelatorio;
 import br.com.brecha.dominio.Banco;
 import br.com.brecha.dominio.Cliente;
 import br.com.brecha.dominio.Conta;
@@ -19,6 +20,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.ByteArrayInputStream;
+import java.io.ObjectInputStream;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -26,6 +29,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -136,6 +140,36 @@ public class ApiVulneravel {
                 HttpRequest.newBuilder(URI.create(pedido.url())).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
         return Map.of("status", resposta.statusCode(), "conteudo", resposta.body());
+    }
+
+    public record PedidoDeEstorno(BigDecimal valor) { }
+
+    /**
+     * BRECHA-018: estorna qualquer transferência, quantas vezes pedirem e no
+     * valor que vier no corpo.
+     */
+    @PostMapping("/transferencias/{id}/estorno")
+    public Transferencia estornar(@RequestHeader(value = "Authorization", required = false) String auth,
+                                  @PathVariable long id, @RequestBody PedidoDeEstorno pedido) {
+        sessao(auth);
+        return banco.estornarSemRegra(banco.transferencia(id).orElseThrow(), pedido.valor());
+    }
+
+    public record Agendamento(String agendamento) { }
+
+    /**
+     * BRECHA-017: desserializa o objeto Java que o cliente mandar. O readObject
+     * da classe roda antes do cast, então nem a conversão de tipo protege.
+     */
+    @PostMapping("/agendamentos")
+    public Map<String, Object> agendar(@RequestHeader(value = "Authorization", required = false) String auth,
+                                       @RequestBody Agendamento pedido) throws Exception {
+        sessao(auth);
+        byte[] bytes = Base64.getDecoder().decode(pedido.agendamento());
+        try (var entrada = new ObjectInputStream(new ByteArrayInputStream(bytes))) {
+            var agendamento = (AgendamentoDeRelatorio) entrada.readObject();
+            return Map.of("formato", agendamento.getFormato(), "horario", agendamento.getHorario());
+        }
     }
 
     private Sessao sessao(String auth) {

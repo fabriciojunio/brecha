@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -29,6 +30,7 @@ public class Banco {
     private final Map<Long, Conta> contas = new ConcurrentHashMap<>();
     private final List<Transferencia> transferencias = Collections.synchronizedList(new ArrayList<>());
     private final AtomicLong sequencia = new AtomicLong(1000);
+    private final Set<Long> estornadas = ConcurrentHashMap.newKeySet();
 
     public Banco(Senhas senhas) {
         // Dados simulados. CPF gerado só para ter formato válido.
@@ -110,6 +112,56 @@ public class Banco {
         }
         destino.creditar(valor);
         return registrar(origem, destino, valor);
+    }
+
+    public Optional<Transferencia> transferencia(long id) {
+        synchronized (transferencias) {
+            return transferencias.stream().filter(t -> t.id() == id).findFirst();
+        }
+    }
+
+    /**
+     * Estorno do /v1 (BRECHA-018). Devolve ao pagador o valor que vier no
+     * pedido, sem lembrar se a transferência já foi estornada: o pagador
+     * estorna duas vezes, ou estorna mais do que pagou, e o recebedor perde.
+     */
+    public Transferencia estornarSemRegra(Transferencia original, BigDecimal valor) {
+        Conta pagador = conta(original.origem()).orElseThrow();
+        Conta recebedor = conta(original.destino()).orElseThrow();
+        recebedor.debitar(valor);
+        pagador.creditar(valor);
+        return registrar(recebedor, pagador, valor);
+    }
+
+    /**
+     * Estorno do /v2. Uma vez só por transferência, sempre do valor original,
+     * e só se o recebedor ainda tiver o dinheiro. O registro do estorno é
+     * atômico (add no conjunto), então dois pedidos ao mesmo tempo não passam
+     * os dois; as duas contas travam sempre na mesma ordem, para dois estornos
+     * cruzados não esperarem um pelo outro para sempre.
+     */
+    public Transferencia estornar(Transferencia original) {
+        if (!estornadas.add(original.id())) {
+            throw new RegraDeNegocio("Transferência já estornada");
+        }
+        Conta pagador = conta(original.origem()).orElseThrow();
+        Conta recebedor = conta(original.destino()).orElseThrow();
+        Conta primeira = pagador.getId() < recebedor.getId() ? pagador : recebedor;
+        Conta segunda = primeira == pagador ? recebedor : pagador;
+        primeira.trava.lock();
+        segunda.trava.lock();
+        try {
+            if (recebedor.getSaldo().compareTo(original.valor()) < 0) {
+                estornadas.remove(original.id());
+                throw new RegraDeNegocio("O recebedor não tem saldo para o estorno");
+            }
+            recebedor.debitar(original.valor());
+            pagador.creditar(original.valor());
+        } finally {
+            segunda.trava.unlock();
+            primeira.trava.unlock();
+        }
+        return registrar(recebedor, pagador, original.valor());
     }
 
     private Transferencia registrar(Conta origem, Conta destino, BigDecimal valor) {

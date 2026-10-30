@@ -15,6 +15,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import org.springframework.validation.annotation.Validated;
@@ -178,6 +179,37 @@ public class ApiCorrigida {
                 HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(10)).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
         return Map.of("status", resposta.statusCode());
+    }
+
+    /**
+     * BRECHA-018: só quem pagou estorna, uma vez, e sempre o valor original.
+     * Transferência de outro cliente responde 404, como conta de outro cliente.
+     */
+    @PostMapping("/transferencias/{id}/estorno")
+    public Transferencia estornar(@RequestHeader(value = "Authorization", required = false) String auth,
+                                  @PathVariable long id) {
+        Conta conta = banco.contaDoCliente(sessao(auth).clienteId()).orElseThrow();
+        Transferencia original = banco.transferencia(id)
+                .filter(t -> t.origem() == conta.getId())
+                .orElseThrow();
+        return banco.estornar(original);
+    }
+
+    public enum Formato { PDF, CSV }
+
+    public record Agendamento(@NotNull Formato formato,
+                              @NotNull @Pattern(regexp = "([01]\\d|2[0-3]):[0-5]\\d") String horario) { }
+
+    /**
+     * BRECHA-017: JSON com dois campos validados, e nada de serialização Java.
+     * O comando de pós-processamento saiu do contrato: quem decide o que roda
+     * no servidor é o servidor.
+     */
+    @PostMapping("/agendamentos")
+    public Map<String, Object> agendar(@RequestHeader(value = "Authorization", required = false) String auth,
+                                       @Valid @RequestBody Agendamento pedido) {
+        sessao(auth);
+        return Map.of("formato", pedido.formato(), "horario", pedido.horario());
     }
 
     private Conta contaDoDono(Sessao sessao, long contaId) {
