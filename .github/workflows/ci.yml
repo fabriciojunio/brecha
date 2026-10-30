@@ -31,6 +31,39 @@ jobs:
       - name: Testes
         run: mvn -B verify
 
+  comprovantes:
+    name: Serviço de comprovantes (Go)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: servicos/comprovantes
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: servicos/comprovantes/go.mod
+          cache: false
+      - name: Formatação e vet
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+      # Exploração no /v1 e bloqueio no /v2, com o detector de corrida ligado.
+      - name: Testes
+        run: go test -race -count=1 -v ./...
+      - name: Vulnerabilidade conhecida no código e na biblioteca padrão
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+      # O serviço é vulnerável de propósito, então o gosec não reprova: o que
+      # ele acha (e o que deixa passar) vai para o resumo e entra no relatório.
+      - name: Análise estática (gosec)
+        run: |
+          go run github.com/securego/gosec/v2/cmd/gosec@v2.29.0 -no-fail -fmt text ./... | tee gosec.txt
+          { echo '### gosec no serviço de comprovantes'; echo '```'; grep -E 'G[0-9]{3}|Issues' gosec.txt || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Imagem
+        run: docker build -t brecha-comprovantes .
+
   seguranca:
     name: Segredos, dependências e autoria
     runs-on: ubuntu-latest
