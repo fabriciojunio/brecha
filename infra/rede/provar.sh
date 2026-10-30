@@ -13,7 +13,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 TRABALHO=$(mktemp -d)
-LAB=(docker compose -p brecha-lab)
+LAB=(docker compose -p brecha-lab -f docker-compose.yml -f docker-compose.waf-fraco.yml)
 CORRIGIDO=(docker compose -p brecha-corrigido -f docker-compose.yml -f docker-compose.corrigido.yml)
 falhas=0
 conferir() { if [ "$1" = 0 ]; then echo "ok     $2"; else echo "FALHOU $2"; falhas=$((falhas + 1)); fi; }
@@ -147,6 +147,17 @@ pos_exploracao() {
 verificar "pelo túnel, a /config entrega a senha do banco" pos_exploracao
 kill "${PIDS[@]}" 2>/dev/null || true
 PIDS=()
+
+echo
+echo "5. WAF contornado pela origem exposta"
+inofensivo=$(java -cp target/classes infra/rede/GerarPayload.java true)
+status_agendamento() {
+  curl -s -o /dev/null -w '%{http_code}' -X POST "$1/v1/agendamentos" -H "Authorization: Bearer $ana_v1"     -H 'Content-Type: application/json' -d "{\"agendamento\":\"$inofensivo\"}"
+}
+pelo_waf=$(status_agendamento http://127.0.0.1:8081)
+pela_origem=$(status_agendamento "$API")
+verificar "pelo WAF, o objeto Java serializado é barrado (status $pelo_waf)" [ "$pelo_waf" = 403 ]
+verificar "direto na origem, o mesmo pedido passa (status $pela_origem)" [ "$pela_origem" = 200 ]
 
 # As duas versões usam as mesmas portas na máquina: o laboratório sai antes.
 "${LAB[@]}" down -v --remove-orphans >/dev/null 2>&1
