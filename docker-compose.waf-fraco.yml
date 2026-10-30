@@ -11,7 +11,9 @@ services:
     environment:
       BACKEND: http://api:8080
       PORT: "8080"
-      PARANOIA: "1"
+      # As regras de serialização Java do CRS (944200 e 944210) só existem a
+      # partir da paranoia 2; em PL1 o objeto serializado passa.
+      PARANOIA: "2"
       ANOMALY_INBOUND: "5"
       MODSEC_RESP_BODY_ACCESS: "Off"
     ports:

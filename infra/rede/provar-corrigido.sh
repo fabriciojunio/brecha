@@ -27,7 +27,7 @@ echo "Versão corrigida"
 "${CORRIGIDO[@]}" up -d --build --wait --wait-timeout 300
 
 WAF=http://127.0.0.1:8080
-nao_publicado() { ! "${CORRIGIDO[@]}" port "$1" "$2" >/dev/null 2>&1; }
+nao_publicado() { [ -z "$(docker port "$("${CORRIGIDO[@]}" ps -q "$1")" 2>/dev/null)" ]; }
 verificar "a API não tem porta publicada; só o WAF chega nela" nao_publicado api 8080
 
 entrar() {

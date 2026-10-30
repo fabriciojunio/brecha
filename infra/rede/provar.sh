@@ -53,7 +53,9 @@ ana_v1=$(curl -fsS -X POST "$API/v1/sessoes" -H 'Content-Type: application/json'
 
 echo
 echo "Exposição"
-nao_publicado() { ! "${LAB[@]}" port "$1" "$2" >/dev/null 2>&1; }
+# "docker compose port" sai com 0 mesmo sem porta publicada; o docker port do
+# contêiner é que diz o que está publicado.
+nao_publicado() { [ -z "$(docker port "$("${LAB[@]}" ps -q "$1")" 2>/dev/null)" ]; }
 verificar "o painel não tem porta publicada" nao_publicado painel 8080
 verificar "o banco não tem porta publicada" nao_publicado banco 5432
 
@@ -65,8 +67,9 @@ sondar() { # host porta -> aberta-http, aberta-nao-http, fechada, sem-host
     -H 'Content-Type: application/json' -d "{\"url\":\"http://$1:$2/\"}" -w '\n%{http_code}')
   case "$corpo" in
     *$'\n'200) echo aberta-http ;;
-    *ConnectException*) echo fechada ;;
+    # O Java embrulha o host desconhecido numa ConnectException: testar antes.
     *UnresolvedAddress*|*UnknownHost*) echo sem-host ;;
+    *ConnectException*) echo fechada ;;
     *) echo aberta-nao-http ;;
   esac
 }
