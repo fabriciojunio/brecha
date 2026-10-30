@@ -64,6 +64,59 @@ jobs:
       - name: Imagem
         run: docker build -t brecha-comprovantes .
 
+  relatorios:
+    name: Serviço de relatórios (Python e Django)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17.10-alpine3.24@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+        env:
+          POSTGRES_USER: relatorios
+          POSTGRES_PASSWORD: senha-so-do-ci
+          POSTGRES_DB: relatorios
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U relatorios"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: servicos/relatorios
+    # Valores só deste banco descartável do CI.
+    env:
+      DJANGO_SECRET_KEY: chave-so-do-ci-sem-valor-fora-daqui
+      BRECHA_SEGREDO: laboratorio-local-segredo-com-mais-de-32-bytes
+      RELATORIOS_TOKEN_DE_SERVICO: token-so-do-ci
+      PGHOST: 127.0.0.1
+      PGUSER: relatorios
+      PGPASSWORD: senha-so-do-ci
+      PGDATABASE: relatorios
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.13.16'
+      - name: Dependências só com hash conferido
+        run: python -m pip install --require-hashes -r requirements.txt
+      - name: Configuração e migrações em dia
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+      # Exploração no /v1 e bloqueio no /v2, contra PostgreSQL de verdade.
+      - name: Testes
+        run: python manage.py test -v 2
+      # A ferramenta também vem travada por hash, num venv separado da aplicação.
+      - name: Vulnerabilidade conhecida nas dependências
+        run: |
+          python -m venv "$RUNNER_TEMP/auditoria"
+          "$RUNNER_TEMP/auditoria/bin/pip" install --require-hashes -r ferramentas.txt
+          "$RUNNER_TEMP/auditoria/bin/pip-audit" --require-hashes -r requirements.txt
+      - name: Imagem
+        run: docker build -t brecha-relatorios .
+
   seguranca:
     name: Segredos, dependências e autoria
     runs-on: ubuntu-latest

@@ -1,0 +1,6 @@
+# Fonte das dependências. O requirements.txt sai daqui, com hash, pelo uv:
+#   uv pip compile requirements.in --generate-hashes --python-version 3.13 \
+#     --exclude-newer <hoje menos 7 dias> -o requirements.txt
+Django==6.1.2
+psycopg[binary]==3.3.6
+gunicorn==26.2.0
