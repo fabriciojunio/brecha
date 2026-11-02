@@ -11,11 +11,14 @@ services:
     environment:
       BACKEND: http://api:8080
       PORT: "8080"
-      # As regras de serialização Java do CRS (944200 e 944210) só existem a
-      # partir da paranoia 2; em PL1 o objeto serializado passa.
+      # Paranoia 2 liga mais regras do CRS; a serialização Java em si é barrada
+      # pela regra própria montada em before-crs, que não depende do parser de
+      # JSON do CRS.
       PARANOIA: "2"
       ANOMALY_INBOUND: "5"
       MODSEC_RESP_BODY_ACCESS: "Off"
+    volumes:
+      - ./infra/waf/before-crs/990-bloqueia-serializacao-java.conf:/opt/modsecurity/rules/before-crs/990-bloqueia-serializacao-java.conf:ro
     ports:
       - "127.0.0.1:8081:8080"
     networks: [publica]
