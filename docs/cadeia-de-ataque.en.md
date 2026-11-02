@@ -66,10 +66,10 @@ breaking one does not lead to the next.
 |---|---|
 | SSRF sees the network | `/v2` validates the destination against an allowlist and refuses internal and cloud metadata addresses |
 | `/config` leaks the secret | the panel requires a token and has no `/config`; the secret comes from a file, not an environment variable |
-| forged token | the lab secret and the repository default are rejected; the real secret never leaves a file readable only by the service |
+| forged token | the fixed version draws a new secret at startup and reads it from a mounted file, never from an environment variable; a token signed with the lab secret or the repository default is rejected |
 | deserialization runs a command | `/v2` does not deserialize Java; it accepts only the expected fields, by schema |
 | reverse tunnel | the internal network is `internal: true`, with no exit outward; the attacker never receives the connection |
-| Nmap through the API | the API has no published port: only the WAF reaches it |
+| Nmap through the tunnel | with no command execution and no network exit, there is no tunnel for Nmap to cross; and the API has no published port, only the WAF reaches it |
 | WAF bypassed via the origin | there is no exposed origin; and the serialized Java object is blocked by a custom rule loaded as an OWASP CRS plugin |
 
 Every row in this table is a check that runs in CI and must pass for the merge to

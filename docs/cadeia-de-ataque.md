@@ -65,10 +65,10 @@ não leve à seguinte.
 |---|---|
 | SSRF enxerga a rede | o `/v2` valida o destino por lista de permissões e recusa endereço interno e o de metadados da nuvem |
 | `/config` entrega segredo | o painel exige token e não tem `/config`; segredo vem de arquivo, não de variável de ambiente |
-| token forjado | o segredo do laboratório e o padrão do repositório são recusados; o segredo real nunca sai de arquivo legível só pelo serviço |
+| token forjado | a versão corrigida sorteia um segredo novo na subida e o lê de arquivo montado, nunca de variável de ambiente; token assinado com o segredo do laboratório ou com o padrão do repositório é recusado |
 | desserialização executa comando | o `/v2` não desserializa Java; aceita só os campos esperados, por esquema |
 | túnel reverso | a rede interna é `internal: true`, sem saída para fora; o atacante não recebe a conexão |
-| Nmap pela API | a API não tem porta publicada: só o WAF chega nela |
+| Nmap pelo túnel | sem execução de comando e sem saída de rede, não existe túnel para o Nmap atravessar; e a API não tem porta publicada, só o WAF chega nela |
 | WAF contornado pela origem | não há origem exposta; e o objeto Java serializado é barrado por uma regra própria carregada como plugin do OWASP CRS |
 
 Cada linha dessa tabela é uma verificação que roda na CI e precisa passar para o
