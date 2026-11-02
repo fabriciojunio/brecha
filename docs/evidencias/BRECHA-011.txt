@@ -1,0 +1,13 @@
+# Evidência BRECHA-011: a comparação de assinatura do /v1 vaza, pelo tempo, quantos bytes estão certos.
+# $ go test -v -run TestBrecha011
+
+=== RUN   TestBrecha011ComparacaoDoV1VazaQuantosBytesEstaoCertos
+    exploracao_test.go:144: v1: 0 bytes certos 2.7 ns, 31 bytes certos 22.6 ns
+--- PASS: TestBrecha011ComparacaoDoV1VazaQuantosBytesEstaoCertos (11.88s)
+=== RUN   TestBrecha011ComparacaoDoV2NaoDependeDoPrefixo
+    exploracao_test.go:154: v2: 0 bytes certos 17.4 ns, 31 bytes certos 17.5 ns
+--- PASS: TestBrecha011ComparacaoDoV2NaoDependeDoPrefixo (12.63s)
+=== RUN   TestBrecha011AssinaturaCertaEErradaPorHTTP
+--- PASS: TestBrecha011AssinaturaCertaEErradaPorHTTP (0.01s)
+PASS
+ok  	github.com/fabriciojunio/brecha/comprovantes	26.537s

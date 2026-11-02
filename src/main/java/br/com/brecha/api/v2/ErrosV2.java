@@ -1,13 +1,17 @@
 package br.com.brecha.api.v2;
 
 import br.com.brecha.dominio.RegraDeNegocio;
+import br.com.brecha.seguranca.MuitasRequisicoes;
 import br.com.brecha.seguranca.NaoAutenticado;
 import br.com.brecha.seguranca.Proibido;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -41,13 +45,22 @@ public class ErrosV2 {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "Recurso não encontrado");
     }
 
+    @ExceptionHandler(MuitasRequisicoes.class)
+    ResponseEntity<ProblemDetail> muitas(MuitasRequisicoes e) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(e.segundos()))
+                .body(ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, "Muitas transferências; tente mais tarde"));
+    }
+
     @ExceptionHandler(RegraDeNegocio.class)
     ProblemDetail regra(RegraDeNegocio e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_CONTENT, e.getMessage());
     }
 
+    // Corpo ilegível ou valor de tipo errado (enum desconhecido, texto no lugar
+    // de número) é erro de quem pediu, não do servidor.
     @ExceptionHandler({MethodArgumentNotValidException.class, HandlerMethodValidationException.class,
-            ConstraintViolationException.class})
+            ConstraintViolationException.class, HttpMessageNotReadableException.class})
     ProblemDetail invalido() {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Requisição inválida");
     }

@@ -1,0 +1,9 @@
+# Evidência BRECHA-012: valor que estoura o int32 passa sem a segunda aprovação.
+# $ go test -v -run TestBrecha012
+
+=== RUN   TestBrecha012ValorEstouraOInt32EPulaAAprovacao
+--- PASS: TestBrecha012ValorEstouraOInt32EPulaAAprovacao (0.00s)
+=== RUN   TestBrecha012V2CompararEmInt64ERecusaValorForaDaFaixa
+--- PASS: TestBrecha012V2CompararEmInt64ERecusaValorForaDaFaixa (0.00s)
+PASS
+ok  	github.com/fabriciojunio/brecha/comprovantes	2.252s

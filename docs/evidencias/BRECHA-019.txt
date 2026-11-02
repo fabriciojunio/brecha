@@ -1,0 +1,15 @@
+# Evidência BRECHA-019: falta de proteção contra automação e abuso.
+# Teste Spring Boot com HTTP real (AbusoTest).
+# $ mvn test -Dtest=AbusoTest (BUILD SUCCESS local; CI verde).
+
+v1 (v1AceitaVinteTransferenciasSeguidas): 20 transferências seguidas, todas 200.
+Nenhum limite: um robô esvazia a conta em muitas transferências pequenas.
+
+v2 corrige em três eixos:
+- ritmo (v2BloqueiaORitmoDeRoboPorUmMinuto): quatro transferências em rajada dão
+  status 200, 200, 200, 429, e o cliente fica bloqueado por um minuto (a seguinte
+  também é 429). Gente não faz cinco transferências em dois segundos.
+- por cliente no minuto (v2LimitaPorClienteNoMinuto): espaçadas para não serem
+  rajada, a sétima no minuto é 429 (200 x6, depois 429).
+- por dispositivo (v2SomaAsContasDoMesmoDispositivo): o teto do aparelho soma
+  todas as contas usadas nele, o desenho de conta laranja.

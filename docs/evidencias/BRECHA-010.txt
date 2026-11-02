@@ -1,0 +1,9 @@
+# Evidência BRECHA-010: nonce fixo no AES-GCM revela o pagador de outro comprovante.
+# Teste de exploração por HTTP real (httptest). $ go test -v -run TestBrecha010
+
+=== RUN   TestBrecha010NonceRepetidoRevelaOPagadorDeOutroComprovante
+--- PASS: TestBrecha010NonceRepetidoRevelaOPagadorDeOutroComprovante (0.01s)
+=== RUN   TestBrecha010V2UsaNonceNovoECifraDiferente
+--- PASS: TestBrecha010V2UsaNonceNovoECifraDiferente (0.00s)
+PASS
+ok  	github.com/fabriciojunio/brecha/comprovantes	2.054s

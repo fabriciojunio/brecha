@@ -1,0 +1,17 @@
+# Evidência BRECHA-018: estorno sem regra de negócio.
+# Teste Spring Boot com HTTP real (ExploracaoTest.Estorno).
+# $ mvn test -Dtest=ExploracaoTest (BUILD SUCCESS local; CI verde).
+
+v1 (v1PagadorEstornaDuasVezesEOValorQueQuiser): o Bruno (conta 200) transfere
+R$ 1,00 para a Ana (conta 100) e estorna duas vezes, no valor que quiser:
+
+  POST /v1/transferencias            {"origem":200,"destino":100,"valor":100}  -> 200
+  POST /v1/transferencias/{id}/estorno {"valor":100}   -> 200
+  POST /v1/transferencias/{id}/estorno {"valor":1000}  -> 200
+
+Pagou 100 e recebeu 1100 de volta. Saldo final: conta 200 = 9000, conta 100 =
+-500. Dinheiro criado, e a Ana termina devendo. O estorno não confere a
+transferência original, o valor nem quantas vezes já foi estornado.
+
+v2 (v2EstornaUmaVezSoEOValorOriginal): o estorno acontece uma vez só e no valor
+original; a segunda tentativa é recusada.

@@ -1,0 +1,20 @@
+# Evidência BRECHA-017: desserialização insegura leva a execução de comando.
+# Teste Spring Boot com HTTP real (ExploracaoTest.Desserializacao).
+# $ mvn test -Dtest=ExploracaoTest  (BUILD SUCCESS local; job "Exploração e
+# reteste" verde na CI). Resumo também na prova de rede (infra/rede/provar.sh:
+# "ok  o contêiner da API mandou o próprio ambiente para o atacante").
+
+O atacante serializa um AgendamentoDeRelatorio cujo campo de pós-processamento
+é o comando que ele quer rodar (no teste, só cria um arquivo-marca, para provar
+a execução sem efeito colateral) e manda em base64:
+
+  POST /v1/agendamentos
+  {"agendamento":"rO0ABXNy...<objeto Java serializado>..."}
+
+v1 (v1ExecutaOComandoDoAtacante): resposta 200 e o arquivo-marca aparece no
+servidor -> o comando escolhido pelo atacante rodou. O readObject corre antes
+do cast, então a conversão de tipo não protege.
+
+v2 (v2NaoAceitaObjetoSerializado): resposta 400 e o arquivo-marca NÃO aparece.
+O /v2 aceita só {"formato","horario"} validados (v2AceitaSoFormatoEHorarioValidos);
+campo fora do contrato não vira comando.

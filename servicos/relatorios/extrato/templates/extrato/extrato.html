@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Extrato ({{ versao }})</title>
+</head>
+<body>
+<h1>Extrato</h1>
+<table>
+<thead><tr><th>Data</th><th>Descrição</th><th>Valor (centavos)</th></tr></thead>
+<tbody>
+{% for lancamento in lancamentos %}
+<tr><td>{{ lancamento.data }}</td><td>{{ lancamento.descricao }}</td><td>{{ lancamento.valorCentavos }}</td></tr>
+{% empty %}
+<tr><td colspan="3">Nenhum lançamento.</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</body>
+</html>

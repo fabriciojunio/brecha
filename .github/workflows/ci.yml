@@ -31,6 +31,154 @@ jobs:
       - name: Testes
         run: mvn -B verify
 
+  comprovantes:
+    name: Serviço de comprovantes (Go)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: servicos/comprovantes
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: servicos/comprovantes/go.mod
+          cache: false
+      - name: Formatação e vet
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+      # Exploração no /v1 e bloqueio no /v2, com o detector de corrida ligado.
+      - name: Testes
+        run: go test -race -count=1 -v ./...
+      - name: Vulnerabilidade conhecida no código e na biblioteca padrão
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+      # O serviço é vulnerável de propósito, então o gosec não reprova: o que
+      # ele acha (e o que deixa passar) vai para o resumo e entra no relatório.
+      - name: Análise estática (gosec)
+        run: |
+          go run github.com/securego/gosec/v2/cmd/gosec@v2.29.0 -no-fail -fmt text ./... | tee gosec.txt
+          { echo '### gosec no serviço de comprovantes'; echo '```'; grep -E 'G[0-9]{3}|Issues' gosec.txt || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Imagem
+        run: docker build -t brecha-comprovantes .
+      - name: Painel de operação (testes)
+        working-directory: servicos/painel
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test -count=1 -v ./...
+
+  relatorios:
+    name: Serviço de relatórios (Python e Django)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17.10-alpine3.24@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+        env:
+          POSTGRES_USER: relatorios
+          POSTGRES_PASSWORD: senha-so-do-ci
+          POSTGRES_DB: relatorios
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U relatorios"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: servicos/relatorios
+    # Valores só deste banco descartável do CI.
+    env:
+      DJANGO_SECRET_KEY: chave-so-do-ci-sem-valor-fora-daqui
+      BRECHA_SEGREDO: laboratorio-local-segredo-com-mais-de-32-bytes
+      RELATORIOS_TOKEN_DE_SERVICO: token-so-do-ci
+      PGHOST: 127.0.0.1
+      PGUSER: relatorios
+      PGPASSWORD: senha-so-do-ci
+      PGDATABASE: relatorios
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.13.16'
+      - name: Dependências só com hash conferido
+        run: python -m pip install --require-hashes -r requirements.txt
+      - name: Configuração e migrações em dia
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+      # Exploração no /v1 e bloqueio no /v2, contra PostgreSQL de verdade.
+      - name: Testes
+        run: python manage.py test -v 2
+      # A ferramenta também vem travada por hash, num venv separado da aplicação.
+      - name: Vulnerabilidade conhecida nas dependências
+        run: |
+          python -m venv "$RUNNER_TEMP/auditoria"
+          "$RUNNER_TEMP/auditoria/bin/pip" install --require-hashes -r ferramentas.txt
+          "$RUNNER_TEMP/auditoria/bin/pip-audit" --require-hashes -r requirements.txt
+      - name: Imagem
+        run: docker build -t brecha-relatorios .
+
+  notificacao:
+    name: Serviço de notificação (Node e TypeScript)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: servicos/notificacao
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22.23.3'
+      # Sem scripts de instalação: pacote de terceiro não roda nada aqui.
+      - name: Dependências do lockfile
+        run: npm ci --ignore-scripts
+      - name: Tipos
+        run: npx tsc --noEmit
+      # Exploração no /v1 e bloqueio no /v2, por HTTP de verdade.
+      - name: Testes
+        run: npm test
+      - name: Vulnerabilidade conhecida nas dependências
+        run: npm audit --audit-level=low
+      - name: Imagem
+        run: docker build -t brecha-notificacao .
+
+  rede:
+    name: Rede, pivô e versão corrigida
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    needs: [teste, comprovantes, relatorios, notificacao]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+      # O gerador do objeto serializado usa a classe da própria aplicação.
+      - name: Compilar
+        run: mvn -B -q -DskipTests package
+      - name: Ferramentas do atacante (Nmap e proxychains)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq nmap proxychains4 > /dev/null
+      # Laboratório: SSRF, segredo vazado, execução de comando, túnel e Nmap.
+      # Corrigida: a mesma cadeia, que tem de parar em cada passo.
+      - name: Prova de rede
+        run: bash infra/rede/provar.sh
+      - name: Contêineres quando falha
+        if: failure()
+        run: docker ps -a
+
   seguranca:
     name: Segredos, dependências e autoria
     runs-on: ubuntu-latest

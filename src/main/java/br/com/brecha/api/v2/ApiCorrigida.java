@@ -5,6 +5,7 @@ import br.com.brecha.dominio.Cliente;
 import br.com.brecha.dominio.Conta;
 import br.com.brecha.dominio.Senhas;
 import br.com.brecha.dominio.Transferencia;
+import br.com.brecha.seguranca.LimiteDeUso;
 import br.com.brecha.seguranca.NaoAutenticado;
 import br.com.brecha.seguranca.Proibido;
 import br.com.brecha.seguranca.Sessao;
@@ -15,6 +16,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import org.springframework.validation.annotation.Validated;
@@ -54,6 +56,7 @@ public class ApiCorrigida {
     private final Senhas senhas;
     private final TokenAssinado tokens;
     private final DestinoExterno destinos;
+    private final LimiteDeUso limite;
     private final Map<String, Integer> falhasDeLogin = new ConcurrentHashMap<>();
     // BRECHA-007: sem seguir redirecionamento e com tempo limite.
     private final HttpClient http = HttpClient.newBuilder()
@@ -61,11 +64,12 @@ public class ApiCorrigida {
             .connectTimeout(Duration.ofSeconds(5))
             .build();
 
-    public ApiCorrigida(Banco banco, Senhas senhas, TokenAssinado tokens, DestinoExterno destinos) {
+    public ApiCorrigida(Banco banco, Senhas senhas, TokenAssinado tokens, DestinoExterno destinos, LimiteDeUso limite) {
         this.banco = banco;
         this.senhas = senhas;
         this.tokens = tokens;
         this.destinos = destinos;
+        this.limite = limite;
     }
 
     public record Login(@NotBlank @Email String email, @NotBlank String senha) { }
@@ -153,14 +157,21 @@ public class ApiCorrigida {
 
     public record PedidoDeTransferencia(@NotNull Long destino, @NotNull @Positive BigDecimal valor) { }
 
+    /** Identificador do aparelho que o app manda; fora do formato, vale o cliente. */
+    private static final java.util.regex.Pattern DISPOSITIVO = java.util.regex.Pattern.compile("[A-Za-z0-9-]{8,64}");
+
     /**
      * BRECHA-001 e BRECHA-006: a origem é sempre a conta de quem está logado,
-     * o valor tem que ser positivo e a transferência é atômica.
+     * o valor tem que ser positivo e a transferência é atômica. BRECHA-019:
+     * limite por cliente, por dispositivo e por ritmo antes de mexer no saldo.
      */
     @PostMapping("/transferencias")
     public Transferencia transferir(@RequestHeader(value = "Authorization", required = false) String auth,
+                                    @RequestHeader(value = "X-Dispositivo", required = false) String dispositivo,
                                     @Valid @RequestBody PedidoDeTransferencia pedido) {
         Sessao sessao = sessao(auth);
+        limite.registrar(sessao.clienteId(), dispositivo != null && DISPOSITIVO.matcher(dispositivo).matches()
+                ? dispositivo : "cliente-" + sessao.clienteId());
         Conta origem = banco.contaDoCliente(sessao.clienteId()).orElseThrow();
         Conta destino = banco.conta(pedido.destino()).orElseThrow();
         return banco.transferir(origem, destino, pedido.valor());
@@ -178,6 +189,37 @@ public class ApiCorrigida {
                 HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(10)).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
         return Map.of("status", resposta.statusCode());
+    }
+
+    /**
+     * BRECHA-018: só quem pagou estorna, uma vez, e sempre o valor original.
+     * Transferência de outro cliente responde 404, como conta de outro cliente.
+     */
+    @PostMapping("/transferencias/{id}/estorno")
+    public Transferencia estornar(@RequestHeader(value = "Authorization", required = false) String auth,
+                                  @PathVariable long id) {
+        Conta conta = banco.contaDoCliente(sessao(auth).clienteId()).orElseThrow();
+        Transferencia original = banco.transferencia(id)
+                .filter(t -> t.origem() == conta.getId())
+                .orElseThrow();
+        return banco.estornar(original);
+    }
+
+    public enum Formato { PDF, CSV }
+
+    public record Agendamento(@NotNull Formato formato,
+                              @NotNull @Pattern(regexp = "([01]\\d|2[0-3]):[0-5]\\d") String horario) { }
+
+    /**
+     * BRECHA-017: JSON com dois campos validados, e nada de serialização Java.
+     * O comando de pós-processamento saiu do contrato: quem decide o que roda
+     * no servidor é o servidor.
+     */
+    @PostMapping("/agendamentos")
+    public Map<String, Object> agendar(@RequestHeader(value = "Authorization", required = false) String auth,
+                                       @Valid @RequestBody Agendamento pedido) {
+        sessao(auth);
+        return Map.of("formato", pedido.formato(), "horario", pedido.horario());
     }
 
     private Conta contaDoDono(Sessao sessao, long contaId) {

@@ -1,0 +1,25 @@
+# WAF na frente do laboratório, montado do jeito que costuma aparecer: o
+# ModSecurity com o OWASP CRS filtra o que passa por ele, mas a API continua
+# publicada na porta de antes. Quem conhece a origem não passa pelo WAF, como
+# o IP de origem exposto atrás de um CDN. A prova de rede usa este arquivo para
+# mostrar o bypass; na versão corrigida a API não tem porta publicada.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.waf-fraco.yml up -d
+services:
+  waf:
+    image: owasp/modsecurity-crs:4.30.0-nginx-202610180210@sha256:7698c48a41a43138ae317feeec964d1515b861cc1d9e50617bc1cdfe9f314e1d
+    environment:
+      BACKEND: http://api:8080
+      PORT: "8080"
+      # Paranoia 2 liga mais regras do CRS; a serialização Java em si é barrada
+      # pela regra própria montada em before-crs, que não depende do parser de
+      # JSON do CRS.
+      PARANOIA: "2"
+      ANOMALY_INBOUND: "5"
+      MODSEC_RESP_BODY_ACCESS: "Off"
+    volumes:
+      - ./infra/waf/bloqueia-serializacao-java-before.conf:/opt/owasp-crs/plugins/bloqueia-serializacao-java-before.conf:ro
+    ports:
+      - "127.0.0.1:8081:8080"
+    networks: [publica]
+    depends_on: [api]
