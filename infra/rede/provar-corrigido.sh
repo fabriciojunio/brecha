@@ -89,5 +89,13 @@ status=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$WAF/v1/agendamentos" -
   -H 'Content-Type: application/json' -d "{\"agendamento\":\"$payload\"}")
 verificar "o WAF barra o objeto Java serializado (status $status)" [ "$status" = 403 ]
 
+# Mesmo diagnóstico do laboratório: se o WAF não barrou, mostra se o plugin
+# foi ativado e o que o ModSecurity registrou.
+if [ "$status" != 403 ]; then
+  echo "--- diagnóstico do WAF corrigido ---"
+  "${CORRIGIDO[@]}" exec -T waf sh -c 'grep -n plugins /etc/modsecurity.d/setup.conf; echo "[plugins]"; ls -l /opt/owasp-crs/plugins/ 2>&1; echo "[montado]"; head -1 /opt/owasp-crs/plugins/bloqueia-serializacao-java-before.conf 2>&1' || true
+  "${CORRIGIDO[@]}" logs --no-color --tail=40 waf 2>&1 | grep -iE "9519100|serial|rO0AB|ModSecurity: (Warning|Access)" | head -20 || true
+fi
+
 "${CORRIGIDO[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
 [ "$falhas" = 0 ]

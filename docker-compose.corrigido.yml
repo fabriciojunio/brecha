@@ -26,7 +26,7 @@ services:
       MODSEC_REQ_BODY_LIMIT_ACTION: Reject
       MODSEC_RESP_BODY_ACCESS: "Off"
     volumes:
-      - ./infra/waf/before-crs/990-bloqueia-serializacao-java.conf:/opt/modsecurity/rules/before-crs/990-bloqueia-serializacao-java.conf:ro
+      - ./infra/waf/bloqueia-serializacao-java-before.conf:/opt/owasp-crs/plugins/bloqueia-serializacao-java-before.conf:ro
     ports:
       - "127.0.0.1:8080:8080"
     networks: [publica, interna]

@@ -18,7 +18,7 @@ services:
       ANOMALY_INBOUND: "5"
       MODSEC_RESP_BODY_ACCESS: "Off"
     volumes:
-      - ./infra/waf/before-crs/990-bloqueia-serializacao-java.conf:/opt/modsecurity/rules/before-crs/990-bloqueia-serializacao-java.conf:ro
+      - ./infra/waf/bloqueia-serializacao-java-before.conf:/opt/owasp-crs/plugins/bloqueia-serializacao-java-before.conf:ro
     ports:
       - "127.0.0.1:8081:8080"
     networks: [publica]
