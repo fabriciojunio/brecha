@@ -7,6 +7,8 @@ intrusão completo. Laboratório local, com dados simulados.
 
 **Relatório:** [docs/relatorio-pentest.md](docs/relatorio-pentest.md) · [English](docs/relatorio-pentest.en.md)
 
+**Cadeia de ataque, passo a passo:** [docs/cadeia-de-ataque.md](docs/cadeia-de-ataque.md) · [English](docs/cadeia-de-ataque.en.md)
+
 ## O que tem aqui
 
 | Rota | O que é |
@@ -73,6 +75,7 @@ src/main/java/br/com/brecha/
   api/v2/       API corrigida, validação de destino externo e erro no padrão RFC 9457
 docs/
   relatorio-pentest.md        relatório no formato OWASP WSTG
+  cadeia-de-ataque.md         a cadeia do SSRF ao controle da rede, passo a passo
   evidencias/                 requisições e respostas reais de cada achado
 ```
 
