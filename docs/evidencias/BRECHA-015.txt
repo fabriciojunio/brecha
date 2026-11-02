@@ -1,0 +1,18 @@
+# Evidência BRECHA-015: consumo inseguro da API do parceiro (SSRF, OWASP API10).
+# Suíte HTTP real do serviço, só os testes do 015.
+# $ node --test --test-name-pattern=BRECHA-015 "test/*.test.ts"
+
+▶ BRECHA-015: consumo inseguro da API do parceiro
+  ✔ v1: segue o redirecionamento do parceiro e devolve o serviço interno (37.4129ms)
+  ✔ v1: repassa o que o parceiro mandar, até campo que ninguém pediu (8.1442ms)
+  ✔ v2: o caminho normal devolve só nome e banco (10.5889ms)
+{"nivel":"aviso","mensagem":"resposta do parceiro recusada","motivo":"falha ao consultar o parceiro: TypeError: fetch failed"}
+{"nivel":"aviso","mensagem":"resposta do parceiro recusada","motivo":"resposta do parceiro grande demais"}
+{"nivel":"aviso","mensagem":"resposta do parceiro recusada","motivo":"formato inesperado"}
+  ✔ v2: recusa redirecionamento, resposta enorme e formato inesperado (19.9349ms)
+{"nivel":"aviso","mensagem":"resposta do parceiro recusada","motivo":"chave inválida"}
+  ✔ v2: recusa chave com caractere que mudaria o caminho no parceiro (4.6514ms)
+✔ BRECHA-015: consumo inseguro da API do parceiro (97.285ms)
+ℹ tests 5
+ℹ pass 5
+ℹ fail 0

@@ -1,0 +1,23 @@
+# Evidência BRECHA-013: SQL injection na busca do extrato.
+# Suíte Django com PostgreSQL de verdade (extrato/tests.py, classe
+# Brecha013SqlInjectionTest). Validada no job "Serviço de relatórios
+# (Python e Django)" da CI; localmente a suíte exige PostgreSQL.
+
+Payload de busca (teste test_v1_union_traz_nome_cpf_e_email_de_todos_os_clientes):
+
+  busca = zzz' UNION SELECT CURRENT_DATE, nome || ' | ' || cpf || ' | ' || email, conta FROM extrato_cliente --
+
+O /v1 monta o SQL por concatenação (extrato/views.py, _buscar_v1):
+
+  SELECT data, descricao, valor_centavos FROM extrato_lancamento
+  WHERE conta = 100 AND descricao ILIKE '%zzz' UNION SELECT CURRENT_DATE,
+  nome || ' | ' || cpf || ' | ' || email, conta FROM extrato_cliente --%' ORDER BY data
+
+Resposta do /v1 (asserção do teste): entre os "lançamentos" aparece
+  "Bruno Lima | 111.444.777-35 | bruno@exemplo.com.br"
+ou seja, nome, CPF e e-mail de todos os clientes, lidos de outra tabela.
+
+/v2 (corrigido): a mesma busca é recusada com 400 pelo limite de tamanho, e o
+ORM manda a busca como parâmetro, então o UNION vira texto procurado, não SQL.
+Testes test_v2_recusa_o_union_pelo_tamanho_antes_de_chegar_ao_banco e
+test_v2_trata_a_busca_como_texto.

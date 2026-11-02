@@ -1,0 +1,12 @@
+# Evidência BRECHA-016: poluição de protótipo nas preferências.
+# Suíte HTTP real do serviço, só os testes do 016.
+# $ node --test --test-name-pattern=BRECHA-016 "test/*.test.ts"
+
+▶ BRECHA-016: poluição de protótipo nas preferências
+  ✔ v1: a Ana vira administradora mandando __proto__ nas preferências (40.639ms)
+  ✔ v2: ignora __proto__, aceita só os campos conhecidos e não dá administração (13.4937ms)
+  ✔ v2: recusa valor fora do esperado (20.7952ms)
+✔ BRECHA-016: poluição de protótipo nas preferências (88.9854ms)
+ℹ tests 3
+ℹ pass 3
+ℹ fail 0
