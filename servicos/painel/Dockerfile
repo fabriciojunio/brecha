@@ -1,4 +1,4 @@
-FROM golang:1.26.9@sha256:37cfcca63222ec499bec5e8ad7aad52dbf7529db36d5812b8eae2f0621aa92d6 AS construcao
+FROM golang:1.26.11@sha256:957952ae74dc010608717144399a59a2c6e82ea03d63be1c7ff6577c5a135f93 AS construcao
 WORKDIR /src
 COPY go.mod ./
 COPY main.go ./
