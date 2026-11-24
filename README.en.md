@@ -81,8 +81,3 @@ docs/
 
 For study only, on your own machine. The techniques described here may only be used on systems with
 written authorisation from the owner.
-
-## Use of AI
-
-This project was structured with the support of generative AI tools. Modelling, business rules,
-code review and conclusions were reviewed and validated by Fabrício Júnio.
